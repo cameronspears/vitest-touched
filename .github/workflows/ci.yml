@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # A pull request checks out a merge commit; its first parent is the base branch.
+          fetch-depth: 2
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec tsc --noEmit
+      - run: pnpm build
+      # Pull requests run only the tests they touched, using the build from the step above.
+      - name: Test (touched only)
+        if: github.event_name == 'pull_request'
+        run: node dist/cli.js
+      # Every push to main runs every test.
+      - name: Test (all)
+        if: github.event_name != 'pull_request'
+        run: pnpm exec vitest run

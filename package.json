@@ -1,0 +1,60 @@
+{
+  "name": "vitest-touched",
+  "version": "0.1.0",
+  "description": "Run only the Vitest tests a change touched, and every test when it can't be sure. Built for pull request CI.",
+  "license": "MIT",
+  "author": "Cameron Spears",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/cameronspears/vitest-touched.git"
+  },
+  "homepage": "https://github.com/cameronspears/vitest-touched#readme",
+  "bugs": {
+    "url": "https://github.com/cameronspears/vitest-touched/issues"
+  },
+  "type": "module",
+  "bin": {
+    "vitest-touched": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "CHANGELOG.md"
+  ],
+  "scripts": {
+    "build": "rm -rf dist && tsc -p tsconfig.build.json",
+    "test": "pnpm build && vitest run",
+    "demo": "pnpm build && python3 -m http.server 4176"
+  },
+  "keywords": [
+    "vitest",
+    "test",
+    "ci",
+    "pull-request",
+    "changed",
+    "related",
+    "affected",
+    "github-actions"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "peerDependencies": {
+    "vitest": ">=3"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.5",
+    "typescript": "^5.9.3",
+    "vitest": "^3.2.7"
+  },
+  "publishConfig": {
+    "provenance": true,
+    "access": "public"
+  },
+  "packageManager": "pnpm@10.26.0"
+}

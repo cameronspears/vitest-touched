@@ -1,0 +1,384 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>vitest-touched demo</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #fff;
+        --text: #222;
+        --muted: #777;
+        --rule: #e6e6e6;
+        --code: #f6f6f6;
+        --line: #c4c4c4;
+        --run: #1a7f37;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #111;
+          --text: #ddd;
+          --muted: #888;
+          --rule: #2a2a2a;
+          --code: #1a1a1a;
+          --line: #4a4a4a;
+          --run: #5fd47f;
+        }
+      }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--text);
+        font: 17px/1.65 system-ui, sans-serif;
+      }
+      main {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 48px 20px 160px;
+      }
+      h1 {
+        font-size: 22px;
+        margin: 0 0 4px;
+      }
+      h2 {
+        font-size: 17px;
+        margin: 40px 0 8px;
+      }
+      h3 {
+        font-size: 15px;
+        margin: 20px 0 4px;
+      }
+      p {
+        margin: 0 0 16px;
+      }
+      a {
+        color: inherit;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      code {
+        font: 14px ui-monospace, Menlo, monospace;
+      }
+      ol li {
+        margin-bottom: 8px;
+      }
+      button {
+        font: 14px ui-monospace, Menlo, monospace;
+        padding: 4px 10px;
+        background: var(--bg);
+        color: var(--text);
+        border: 1px solid var(--rule);
+        cursor: pointer;
+      }
+      .others {
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 4px 20px;
+        margin: 0 0 16px;
+      }
+      .others label {
+        font: 14px ui-monospace, Menlo, monospace;
+        cursor: pointer;
+      }
+      .graph {
+        overflow-x: auto;
+        margin: 0 0 24px;
+      }
+      svg {
+        display: block;
+        width: 100%;
+        min-width: 720px;
+        height: auto;
+      }
+      svg text {
+        font: 13px ui-monospace, Menlo, monospace;
+        fill: var(--text);
+      }
+      svg .label {
+        fill: var(--muted);
+      }
+      .edge {
+        fill: none;
+        stroke: var(--line);
+        stroke-width: 1;
+      }
+      .edge.disk {
+        stroke-dasharray: 3 3;
+      }
+      .edge.lit {
+        stroke: var(--text);
+      }
+      .node rect {
+        fill: var(--bg);
+        stroke: var(--line);
+        stroke-width: 1;
+      }
+      .node.source {
+        cursor: pointer;
+      }
+      .node.source:hover rect {
+        fill: var(--code);
+      }
+      .node:focus {
+        outline: none;
+      }
+      .node:focus-visible rect {
+        stroke: var(--text);
+        stroke-width: 2;
+      }
+      .node .note {
+        display: none;
+        fill: var(--muted);
+      }
+      .node.changed .name {
+        font-weight: 700;
+      }
+      .node.changed .note {
+        display: inline;
+      }
+      .node.lit rect,
+      .node.changed rect {
+        stroke: var(--text);
+      }
+      .node.run rect {
+        stroke: var(--run);
+      }
+      .node.run .name {
+        fill: var(--run);
+      }
+      .node.skip .name {
+        fill: var(--muted);
+        text-decoration: line-through;
+      }
+      #result ul {
+        margin: 0;
+        padding-left: 20px;
+        font: 14px/1.8 ui-monospace, Menlo, monospace;
+      }
+      #result .run li {
+        color: var(--run);
+      }
+      #result .skipped li {
+        color: var(--muted);
+        text-decoration: line-through;
+      }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>vitest-touched</h1>
+      <p class="muted">
+        Click a file in this small made-up project to mark it changed, the way a pull request
+        would, and see which tests run. The choice comes from the package's real planning code.
+        <a href="https://github.com/cameronspears/vitest-touched">Source on GitHub</a>.
+      </p>
+
+      <div class="graph">
+        <svg id="graph" viewBox="0 0 980 360" role="group" aria-label="Import graph: source files on the left, tests on the right"></svg>
+      </div>
+
+      <div class="others" id="others">
+        <span class="muted">Other files:</span>
+      </div>
+      <p><button id="reset" type="button">clear</button></p>
+
+      <div id="result" aria-live="polite"></div>
+
+      <h2>Things to notice</h2>
+      <ol>
+        <li>
+          Change <code>money.ts</code> and every test that imports it runs, even the ones that only
+          reach it through other files.
+        </li>
+        <li>
+          <code>styles.test.ts</code> runs every time. It reads <code>styles.css</code> from disk
+          instead of importing it, so the import graph can't see what it depends on.
+        </li>
+        <li>Change <code>package.json</code> or <code>vitest.config.ts</code> and every test runs.</li>
+        <li>
+          Change <code>README.md</code> and nothing extra runs. No test imports it, and it isn't a
+          file every test depends on.
+        </li>
+        <li>Clear everything and only the test that reads the disk is left.</li>
+      </ol>
+    </main>
+
+    <script type="module">
+      // plan.js has no imports and no Node code, so the browser runs the real thing.
+      import { plan, readsDisk } from '../dist/plan.js';
+
+      // The made-up project. `imports` is the graph Vitest would build; `source` is just enough
+      // of each test for readsDisk() to judge it.
+      const files = [
+        { path: 'package.json', imports: [], other: true },
+        { path: 'vitest.config.ts', imports: [], other: true },
+        { path: 'README.md', imports: [], other: true },
+        { path: 'src/money.ts', imports: [], col: 0 },
+        { path: 'src/templates.ts', imports: [], col: 0 },
+        { path: 'src/styles.css', imports: [], col: 0 },
+        { path: 'src/tax.ts', imports: ['src/money.ts'], col: 1 },
+        { path: 'src/payments.ts', imports: ['src/money.ts'], col: 1 },
+        { path: 'src/cart.ts', imports: ['src/money.ts', 'src/tax.ts'], col: 2 },
+        { path: 'src/emails.ts', imports: ['src/templates.ts', 'src/money.ts'], col: 2 },
+        { path: 'src/checkout.ts', imports: ['src/cart.ts', 'src/payments.ts'], col: 3 },
+        { path: 'test/money.test.ts', imports: ['src/money.ts'], col: 4, source: "import { formatMoney } from '../src/money';" },
+        { path: 'test/cart.test.ts', imports: ['src/cart.ts'], col: 4, source: "import { addToCart } from '../src/cart';" },
+        { path: 'test/checkout.test.ts', imports: ['src/checkout.ts'], col: 4, source: "import { checkout } from '../src/checkout';" },
+        { path: 'test/emails.test.ts', imports: ['src/emails.ts'], col: 4, source: "import { receipt } from '../src/emails';" },
+        { path: 'test/templates.test.ts', imports: ['src/templates.ts'], col: 4, source: "import { render } from '../src/templates';" },
+        { path: 'test/styles.test.ts', imports: [], col: 4, reads: 'src/styles.css', source: "import { readFileSync } from 'node:fs';\nconst css = readFileSync('src/styles.css', 'utf8');" },
+      ];
+      const tests = files.filter((f) => f.source !== undefined);
+      const alwaysRun = tests.filter((t) => readsDisk(t.source)).map((t) => t.path);
+      const changed = new Set(['src/tax.ts']);
+      const toggle = (path) => {
+        changed.has(path) ? changed.delete(path) : changed.add(path);
+        render();
+      };
+
+      // Layout: columns left to right, boxes centred in each.
+      const W = 160;
+      const H = 34;
+      const COL_X = [10, 210, 410, 610, 810];
+      const TOP = 40;
+      const HEIGHT = 350;
+      const pos = new Map();
+      for (let c = 0; c < COL_X.length; c++) {
+        const col = files.filter((f) => f.col === c);
+        const gap = c === 4 ? 16 : 44;
+        const total = col.length * H + (col.length - 1) * gap;
+        let y = TOP + (HEIGHT - TOP - total) / 2;
+        for (const f of col) {
+          pos.set(f.path, { x: COL_X[c], y });
+          y += H + gap;
+        }
+      }
+      const NS = 'http://www.w3.org/2000/svg';
+      const svg = document.getElementById('graph');
+      const el = (tag, attrs, parent = svg) => {
+        const node = document.createElementNS(NS, tag);
+        for (const [k, v] of Object.entries(attrs)) node.setAttribute(k, v);
+        parent.appendChild(node);
+        return node;
+      };
+      el('text', { x: COL_X[0], y: 18, class: 'label' }).textContent = 'src/';
+      el('text', { x: COL_X[4], y: 18, class: 'label' }).textContent = 'test/';
+
+      // Lines go from a file to whatever imports it (or, dashed, reads it).
+      const edges = [];
+      const curve = (a, b) => {
+        const x1 = a.x + W;
+        const y1 = a.y + H / 2;
+        const x2 = b.x;
+        const y2 = b.y + H / 2;
+        const mid = (x1 + x2) / 2;
+        return `M${x1} ${y1} C${mid} ${y1}, ${mid} ${y2}, ${x2} ${y2}`;
+      };
+      for (const f of files) {
+        for (const dep of [...f.imports, ...(f.reads ? [f.reads] : [])]) {
+          const disk = f.reads === dep;
+          const path = el('path', { d: curve(pos.get(dep), pos.get(f.path)), class: `edge${disk ? ' disk' : ''}` });
+          edges.push({ from: dep, to: f.path, disk, path });
+        }
+      }
+
+      const nodes = new Map();
+      for (const f of files) {
+        if (f.other) continue;
+        const p = pos.get(f.path);
+        const isTest = !!f.source;
+        const g = el('g', { class: `node ${isTest ? 'test' : 'source'}`, transform: `translate(${p.x} ${p.y})` });
+        el('rect', { width: W, height: H }, g);
+        el('text', { x: 10, y: H / 2 + 4.5, class: 'name' }, g).textContent = f.path.split('/')[1];
+        if (!isTest) {
+          el('text', { x: 0, y: H + 16, class: 'note' }, g).textContent = '(changed)';
+          g.setAttribute('tabindex', '0');
+          g.setAttribute('role', 'button');
+          g.setAttribute('aria-label', `Mark ${f.path} as changed`);
+          g.addEventListener('click', () => toggle(f.path));
+          g.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              toggle(f.path);
+            }
+          });
+        }
+        nodes.set(f.path, g);
+      }
+
+      const others = document.getElementById('others');
+      const boxes = new Map();
+      for (const f of files.filter((f) => f.other)) {
+        const label = document.createElement('label');
+        const box = document.createElement('input');
+        box.type = 'checkbox';
+        box.addEventListener('change', () => toggle(f.path));
+        label.append(box, ` ${f.path}`);
+        others.appendChild(label);
+        boxes.set(f.path, box);
+      }
+      document.getElementById('reset').addEventListener('click', () => {
+        changed.clear();
+        render();
+      });
+
+      // Everything that imports any of `targets`, directly or through other files.
+      function reach(targets) {
+        const out = new Set(targets);
+        let grew = true;
+        while (grew) {
+          grew = false;
+          for (const f of files) {
+            if (!out.has(f.path) && f.imports.some((d) => out.has(d))) {
+              out.add(f.path);
+              grew = true;
+            }
+          }
+        }
+        return out;
+      }
+
+      const list = (title, items, className = '') => `
+        <h3>${title} (${items.length})</h3>
+        ${items.length ? `<ul class="${className}">${items.map((p) => `<li>${p}</li>`).join('')}</ul>` : '<p class="muted">None.</p>'}`;
+
+      function render() {
+        const chosen = plan({ changed: [...changed], alwaysRun });
+        const all = chosen.mode === 'all';
+        const reached = all ? new Set(files.map((f) => f.path)) : reach(new Set(chosen.changed));
+        const imports = tests.filter((t) => reached.has(t.path)).map((t) => t.path);
+        const disk = all ? [] : chosen.alwaysRun.filter((p) => !imports.includes(p));
+        const running = all ? tests.map((t) => t.path) : [...imports, ...disk];
+        const skipped = tests.map((t) => t.path).filter((p) => !running.includes(p));
+
+        for (const [path, g] of nodes) {
+          if (g.classList.contains('test')) {
+            g.classList.toggle('run', running.includes(path));
+            g.classList.toggle('skip', !running.includes(path));
+          } else {
+            g.classList.toggle('changed', changed.has(path));
+            g.classList.toggle('lit', reached.has(path));
+            g.setAttribute('aria-pressed', String(changed.has(path)));
+          }
+        }
+        for (const e of edges) {
+          e.path.classList.toggle('lit', all || (reached.has(e.from) && reached.has(e.to)) || (e.disk && running.includes(e.to)));
+        }
+        for (const [path, box] of boxes) box.checked = changed.has(path);
+
+        const summary = `<p><strong>${running.length} of ${tests.length} tests run.</strong> `;
+        document.getElementById('result').innerHTML = all
+          ? `${summary}Every test runs, because ${chosen.why}. Every test depends on it in ways the import graph can't show.</p>` +
+            list('Runs', running, 'run')
+          : `${summary}${changed.size ? 'The tests this change could break, plus the one that reads the disk.' : 'Nothing changed, so only the test that reads the disk runs.'}</p>` +
+            list('Imports a changed file', imports, 'run') +
+            list('Reads the disk', disk, 'run') +
+            list('Skipped', skipped, 'skipped');
+      }
+      render();
+    </script>
+  </body>
+</html>
