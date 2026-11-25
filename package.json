@@ -14,7 +14,7 @@
   },
   "type": "module",
   "bin": {
-    "vitest-touched": "./dist/cli.js"
+    "vitest-touched": "dist/cli.js"
   },
   "exports": {
     ".": {
